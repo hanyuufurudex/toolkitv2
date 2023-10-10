@@ -1,0 +1,50 @@
+Sub CreateBingoBoardWithWords()
+
+    Dim rng As Range
+    Dim i As Integer, j As Integer
+    Dim wordIndex As Integer
+    Dim wordList() As Variant
+
+    wordList = Array("a", "b", "c", "d", "e", _
+                     "f", "g", "h", "i", "j", _
+                     "k", "l", "m", "n", "o", _
+                     "p", "q", "r", "s", "t", _
+                     "u", "v", "x", "y", "z")
+
+
+    Sheets("Sheet1").Range("A1:E5").Clear
+
+
+    Call ShuffleArray(wordList)
+
+
+    For i = 1 To 5
+        For j = 1 To 5
+            ' If it's the center square, label it "FREE"
+            If i = 3 And j = 3 Then
+                Sheets("Sheet1").Cells(j, i).Value = "FREE"
+            Else
+                ' Assign words to cells
+                wordIndex = ((i - 1) * 5) + j
+                If wordIndex >= 13 Then wordIndex = wordIndex + 1 ' Adjust for the "FREE" square
+                Sheets("Sheet1").Cells(j, i).Value = wordList(wordIndex - 1)
+            End If
+        Next j
+    Next i
+
+End Sub
+
+
+Sub ShuffleArray(ByRef arr() As Variant)
+    Dim i As Long
+    Dim j As Long
+    Dim tmp As Variant
+
+    For i = UBound(arr) To LBound(arr) + 1 Step -1
+        j = Int((i - LBound(arr) + 1) * Rnd + LBound(arr))
+        tmp = arr(i)
+        arr(i) = arr(j)
+        arr(j) = tmp
+    Next i
+
+End Sub
