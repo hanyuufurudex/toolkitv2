@@ -72,10 +72,10 @@ function display_disk_data() {
         
         local space_ready="No"
         
-        # Calculating used space in source. Subtracting total size and available size gives used space
-        local source_used=$(echo "$source_total - $source_avail" | bc)
-        # If used space on source is less than or equal to available space on target, it's ready.
-        [ $(echo "$source_used <= $target_avail" | bc) -eq 1 ] && space_ready="Yes"
+        local source_used=$(echo "${source_total//[^0-9.]} - ${source_avail//[^0-9.]}" | bc)
+        local target_available=${target_avail//[^0-9.]}
+        [ -n "$source_used" ] && [ -n "$target_available" ] && [ $(echo "$source_used <= $target_available" | bc) -eq 1 ] && space_ready="Yes"
+
         
         printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_ready_width}s | %-${max_mount_width}s\n" "$source_avail" "$target_avail" "$source_total" "$target_total" "$space_ready" "$source_mount"
     done
