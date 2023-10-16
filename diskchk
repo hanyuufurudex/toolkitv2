@@ -10,14 +10,19 @@ function get_disk_info() {
 
 function display_disk_data() {
     local source_server=$(hostname)
-    local target_server=$(TARGET_HOSTNAME)
+
+    local max_avail_src_width=$(echo -e "Space Available - Source Server\n$source_info" | awk '{print $1}' | wc -L)
+    local max_avail_tgt_width=$(echo -e "Space Available - Target Server\n$target_info" | awk '{print $1}' | wc -L)
+    local max_total_src_width=$(echo -e "Total Size - Source Server\n$source_info" | awk '{print $2}' | wc -L)
+    local max_total_tgt_width=$(echo -e "Total Size - Target Server\n$target_info" | awk '{print $2}' | wc -L)
+    local max_mount_width=$(echo -e "Mounted On\n${source_info}\n${target_info}" | awk '{print $3}' | wc -L)
 
     # Fetch disk info from source and target
     local source_info=$(get_disk_info $source_server)
     local target_info=$(get_disk_info $target_server)
 
     # Print headers
-    echo -e "Space Available - Source Server | Space Available - Target Server | Total Size - Source Server | Total Size - Target Server | Mounted On"
+    printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_mount_width}s\n" "Space Available - Source Server" "Space Available - Target Server" "Total Size - Source Server" "Total Size - Target Server" "Mounted On"
     echo "-------------------------------------------------------------------------------------------------------------------------------------------------"
 
     # Convert source and target info to associative arrays for easier lookup
