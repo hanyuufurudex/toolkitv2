@@ -64,13 +64,12 @@ function display_disk_data() {
             target_avail="N/A"
             target_total="N/A"
         fi
-
+    
         # If mount paths are not the same, label the one from the source
         [ "$source_mount" != "$target_mount" ] && source_mount="$source_mount (source)"
         
-        echo -e "$source_avail | $target_avail | $source_total | $target_total | $source_mount"
+        printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_mount_width}s\n" "$source_avail" "$target_avail" "$source_total" "$target_total" "$source_mount"
     done
-}
 
 # Usage
 display_disk_data "source_server_address" "target_server_address"
