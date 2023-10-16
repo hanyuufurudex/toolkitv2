@@ -1,0 +1,71 @@
+#!/bin/bash
+
+function get_disk_info() {
+    # Arguments:
+    # $1 - server address
+
+    # Fetching disk info
+    ssh $1 "df -h | grep '/dev/mapper/'" | awk '{print $4, $2, $NF}'
+}
+
+function display_disk_data() {
+    local source_server="$1"
+    local target_server="$2"
+
+    # Fetch disk info from source and target
+    local source_info=$(get_disk_info $source_server)
+    local target_info=$(get_disk_info $target_server)
+
+    # Print headers
+    echo -e "Space Available - Source Server | Space Available - Target Server | Total Size - Source Server | Total Size - Target Server | Mounted On"
+    echo "-------------------------------------------------------------------------------------------------------------------------------------------------"
+
+    # Convert source and target info to associative arrays for easier lookup
+    declare -A source_data target_data
+    while IFS= read -r line; do
+        local mount=$(echo $line | awk '{print $3}')
+        source_data["$mount"]=$line
+    done <<< "$source_info"
+    
+    while IFS= read -r line; do
+        local mount=$(echo $line | awk '{print $3}')
+        target_data["$mount"]=$line
+    done <<< "$target_info"
+
+    # Combine keys from both source and target arrays
+    keys=$(echo ${!source_data[@]} ${!target_data[@]} | tr ' ' '\n' | sort -u)
+
+    # Display data
+    for mount in $keys; do
+        local source_line=${source_data["$mount"]}
+        local target_line=${target_data["$mount"]}
+        
+        local source_avail=$(echo $source_line | awk '{print $1}')
+        local source_total=$(echo $source_line | awk '{print $2}')
+        local source_mount=$(echo $source_line | awk '{print $3}')
+        
+        local target_avail=$(echo $target_line | awk '{print $1}')
+        local target_total=$(echo $target_line | awk '{print $2}')
+        local target_mount=$(echo $target_line | awk '{print $3}')
+        
+        if [ -z "$source_mount" ]; then
+            source_mount="N/A (target)"
+            source_avail="N/A"
+            source_total="N/A"
+        fi
+        
+        if [ -z "$target_mount" ]; then
+            target_mount="N/A (source)"
+            target_avail="N/A"
+            target_total="N/A"
+        fi
+
+        # If mount paths are not the same, label the one from the source
+        [ "$source_mount" != "$target_mount" ] && source_mount="$source_mount (source)"
+        
+        echo -e "$source_avail | $target_avail | $source_total | $target_total | $source_mount"
+    done
+}
+
+# Usage
+display_disk_data "source_server_address" "target_server_address"
