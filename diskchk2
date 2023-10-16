@@ -62,3 +62,28 @@ for mount in "${!TGT_MAP[@]}"; do
         printf "%-30s | %-30s | %-20s | %-20s | %-20s | %-15s\n" "${tgt_disk_free_total[0]}" "$mount (Tgt)" "-" "${tgt_disk_free_total[1]}" "${tgt_disk_free_total[2]}" "No"
     fi
 done
+
+
+transfer_data() {
+    # Present the user with a choice of mount points available on both servers.
+    echo "Please select a mount point to replicate data from source to target:"
+    select mount in "${!SRC_MAP[@]}"; do
+        # Verify if the chosen mount exists on both servers.
+        if [[ ${TGT_MAP["$mount"]} ]]; then
+            echo "Transferring data from $SOURCE_SERVER:$mount to $TARGET_SERVER:$mount ..."
+            # Use rsync to transfer the data.
+            # -a stands for "archive" and syncs recursively and preserves symbolic links, special and device files, modification times, group, owner, and permissions.
+            rsync -a -e ssh "$SOURCE_SERVER:$mount/" "$TARGET_SERVER:$mount/"
+            echo "Data transfer for $mount completed."
+            break
+        else
+            echo "Invalid selection or the mount point exists on source but not on target. Please try again."
+        fi
+    done
+}
+
+echo "Would you like to transfer data from a mount point? (yes/no)"
+read choice
+if [[ $choice == "yes" ]]; then
+    transfer_data
+fi
