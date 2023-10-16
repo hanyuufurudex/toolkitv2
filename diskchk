@@ -22,12 +22,12 @@ function display_disk_data() {
     local max_avail_tgt_width=$(($(echo -e "Avail - Tgt\n$target_info" | awk '{print $1}' | wc -L) + padding))
     local max_total_src_width=$(($(echo -e "Total - Src\n$source_info" | awk '{print $2}' | wc -L) + padding))
     local max_total_tgt_width=$(($(echo -e "Total - Tgt\n$target_info" | awk '{print $2}' | wc -L) + padding))
-    local max_mount_width=$(($(echo -e "Mount\n${source_info}\n${target_info}" | awk '{print $3}' | wc -L) + padding))
     local max_ready_width=$(echo "Space Ready" | wc -L)
+    local max_mount_width=$(($(echo -e "Mount\n${source_info}\n${target_info}" | awk '{print $3}' | wc -L) + padding))
 
     # Print headers with padding
     printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_ready_width}s | %-${max_mount_width}s\n" "Avail - Src" "Avail - Tgt" "Total - Src" "Total - Tgt" "Space Ready" "Mount"
-    echo "------------------------------------------------------------------------------------------------------------------------"
+    echo "-------------------------------------------------------------------------------------------------------------------------------------------------"
 
     declare -A source_data
     declare -A target_data
@@ -69,15 +69,15 @@ function display_disk_data() {
 
         # If mount paths are not the same, label the one from the source
         [ "$source_mount" != "$target_mount" ] && source_mount="$source_mount (source)"
-
+        
         local space_ready="No"
-
+        
         # Calculating used space in source. Subtracting total size and available size gives used space
         local source_used=$(echo "$source_total - $source_avail" | bc)
         # If used space on source is less than or equal to available space on target, it's ready.
         [ $(echo "$source_used <= $target_avail" | bc) -eq 1 ] && space_ready="Yes"
-     
-        printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_mount_width}s\n" "$source_avail" "$target_avail" "$source_total" "$target_total" "$source_mount"
+        
+        printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_ready_width}s | %-${max_mount_width}s\n" "$source_avail" "$target_avail" "$source_total" "$target_total" "$space_ready" "$source_mount"
     done
 }
 
