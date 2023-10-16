@@ -11,22 +11,22 @@ function get_disk_info() {
 function display_disk_data() {
     local source_server=$(hostname)
     local target_server="$1"
-    local padding=5  # Number of spaces added as padding
+    local padding=8  # Increased padding
 
     # Fetch disk info from source and target
     local source_info=$(get_disk_info $source_server)
     local target_info=$(get_disk_info $target_server)
 
     # Calculate max widths for each column with added padding
-    local max_avail_src_width=$(($(echo -e "Space Available - Source Server\n$source_info" | awk '{print $1}' | wc -L) + padding))
-    local max_avail_tgt_width=$(($(echo -e "Space Available - Target Server\n$target_info" | awk '{print $1}' | wc -L) + padding))
-    local max_total_src_width=$(($(echo -e "Total Size - Source Server\n$source_info" | awk '{print $2}' | wc -L) + padding))
-    local max_total_tgt_width=$(($(echo -e "Total Size - Target Server\n$target_info" | awk '{print $2}' | wc -L) + padding))
-    local max_mount_width=$(($(echo -e "Mounted On\n${source_info}\n${target_info}" | awk '{print $3}' | wc -L) + padding))
+    local max_avail_src_width=$(($(echo -e "Avail - Src\n$source_info" | awk '{print $1}' | wc -L) + padding))
+    local max_avail_tgt_width=$(($(echo -e "Avail - Tgt\n$target_info" | awk '{print $1}' | wc -L) + padding))
+    local max_total_src_width=$(($(echo -e "Total - Src\n$source_info" | awk '{print $2}' | wc -L) + padding))
+    local max_total_tgt_width=$(($(echo -e "Total - Tgt\n$target_info" | awk '{print $2}' | wc -L) + padding))
+    local max_mount_width=$(($(echo -e "Mount\n${source_info}\n${target_info}" | awk '{print $3}' | wc -L) + padding))
 
     # Print headers with padding
-    printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_mount_width}s\n" "Space Available - Source Server" "Space Available - Target Server" "Total Size - Source Server" "Total Size - Target Server" "Mounted On"
-    echo "-------------------------------------------------------------------------------------------------------------------------------------------------"
+    printf "%-${max_avail_src_width}s | %-${max_avail_tgt_width}s | %-${max_total_src_width}s | %-${max_total_tgt_width}s | %-${max_mount_width}s\n" "Avail - Src" "Avail - Tgt" "Total - Src" "Total - Tgt" "Mount"
+    echo "------------------------------------------------------------------------------------------------------------------------"
 
     declare -A source_data
     declare -A target_data
