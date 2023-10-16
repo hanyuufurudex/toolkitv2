@@ -9,8 +9,8 @@ function get_disk_info() {
 }
 
 function display_disk_data() {
-    local source_server="$1"
-    local target_server="$2"
+    local source_server=$(hostname)
+    local target_server=$(TARGET_HOSTNAME)
 
     # Fetch disk info from source and target
     local source_info=$(get_disk_info $source_server)
