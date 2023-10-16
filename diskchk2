@@ -1,8 +1,13 @@
 #!/bin/bash
 
 # Define the source and target servers.
-SOURCE_SERVER="source_server_ip"
-TARGET_SERVER="target_server_ip"
+SOURCE_SERVER=$(hostname)
+
+
+# Function to convert bytes to GB.
+bytes_to_gb() {
+    echo "$1 / 1024 / 1024 / 1024" | bc -l | awk '{printf "%.2f", $0}'
+}
 
 # Retrieve df data without human-readable format for local disks.
 SRC_DF_DATA=$(ssh $SOURCE_SERVER "df | grep /dev/mapper")
@@ -15,7 +20,7 @@ declare -A SRC_MAP TGT_MAP
 while read -r line; do
     disk=$(echo $line | awk '{print $1}')
     mount=$(echo $line | awk '{print $6}')
-    used=$(echo $line | awk '{print $3}')
+    used=$(bytes_to_gb $(echo $line | awk '{print $3}'))
     SRC_MAP["$mount"]="$disk $used"
 done <<< "$SRC_DF_DATA"
 
@@ -23,13 +28,13 @@ done <<< "$SRC_DF_DATA"
 while read -r line; do
     disk=$(echo $line | awk '{print $1}')
     mount=$(echo $line | awk '{print $6}')
-    free=$(echo $line | awk '{print $4}')
-    total=$(echo $line | awk '{print $2}')
+    free=$(bytes_to_gb $(echo $line | awk '{print $4}'))
+    total=$(bytes_to_gb $(echo $line | awk '{print $2}'))
     TGT_MAP["$mount"]="$disk $free $total"
 done <<< "$TGT_DF_DATA"
 
 # Display the header.
-echo "Disk | Mount | Used - Src | Free - Tgt | Total - Tgt"
+printf "%-20s | %-20s | %-15s | %-15s | %-15s\n" "Disk" "Mount" "Used - Src (GB)" "Free - Tgt (GB)" "Total - Tgt (GB)"
 
 # Match and display data.
 for mount in "${!SRC_MAP[@]}"; do
@@ -39,14 +44,14 @@ for mount in "${!SRC_MAP[@]}"; do
         
         # Check if Space is ready (Space Used - Source <= Space Free - Target)
         space_ready="No"
-        if (( ${src_disk_used[1]} <= ${tgt_disk_free_total[1]} )); then
+        if (( $(echo "${src_disk_used[1]} <= ${tgt_disk_free_total[1]}" | bc -l) )); then
             space_ready="Yes"
         fi
 
-        echo "${src_disk_used[0]} | $mount | ${src_disk_used[1]} | ${tgt_disk_free_total[1]} | ${tgt_disk_free_total[2]} | $space_ready"
+        printf "%-20s | %-20s | %-15s | %-15s | %-15s | %-5s\n" "${src_disk_used[0]}" "$mount" "${src_disk_used[1]}" "${tgt_disk_free_total[1]}" "${tgt_disk_free_total[2]}" "$space_ready"
     else
         src_disk_used=(${SRC_MAP["$mount"]})
-        echo "${src_disk_used[0]} | $mount (Src) | ${src_disk_used[1]} | - | - | No"
+        printf "%-20s | %-20s | %-15s | %-15s | %-15s | %-5s\n" "${src_disk_used[0]}" "$mount (Src)" "${src_disk_used[1]}" "-" "-" "No"
     fi
 done
 
@@ -54,6 +59,6 @@ done
 for mount in "${!TGT_MAP[@]}"; do
     if [[ ! ${SRC_MAP["$mount"]} ]]; then
         tgt_disk_free_total=(${TGT_MAP["$mount"]})
-        echo "${tgt_disk_free_total[0]} | $mount (Tgt) | - | ${tgt_disk_free_total[1]} | ${tgt_disk_free_total[2]} | No"
+        printf "%-20s | %-20s | %-15s | %-15s | %-15s | %-5s\n" "${tgt_disk_free_total[0]}" "$mount (Tgt)" "-" "${tgt_disk_free_total[1]}" "${tgt_disk_free_total[2]}" "No"
     fi
 done
