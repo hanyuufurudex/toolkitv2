@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Define the source and target servers.
+SOURCE_SERVER="source_server_ip"
+TARGET_SERVER="target_server_ip"
+
+# Retrieve df data without human-readable format for local disks.
+SRC_DF_DATA=$(ssh $SOURCE_SERVER "df | grep /dev/mapper")
+TGT_DF_DATA=$(ssh $TARGET_SERVER "df | grep /dev/mapper")
+
+# Declare an associative array to hold source and target disk data.
+declare -A SRC_MAP TGT_MAP
+
+# Parse source data and populate SRC_MAP.
+while read -r line; do
+    disk=$(echo $line | awk '{print $1}')
+    mount=$(echo $line | awk '{print $6}')
+    used=$(echo $line | awk '{print $3}')
+    SRC_MAP["$mount"]="$disk $used"
+done <<< "$SRC_DF_DATA"
+
+# Parse target data and populate TGT_MAP.
+while read -r line; do
+    disk=$(echo $line | awk '{print $1}')
+    mount=$(echo $line | awk '{print $6}')
+    free=$(echo $line | awk '{print $4}')
+    total=$(echo $line | awk '{print $2}')
+    TGT_MAP["$mount"]="$disk $free $total"
+done <<< "$TGT_DF_DATA"
+
+# Display the header.
+echo "Disk | Mount | Used - Src | Free - Tgt | Total - Tgt"
+
+# Match and display data.
+for mount in "${!SRC_MAP[@]}"; do
+    if [[ ${TGT_MAP["$mount"]} ]]; then
+        src_disk_used=(${SRC_MAP["$mount"]})
+        tgt_disk_free_total=(${TGT_MAP["$mount"]})
+        
+        # Check if Space is ready (Space Used - Source <= Space Free - Target)
+        space_ready="No"
+        if (( ${src_disk_used[1]} <= ${tgt_disk_free_total[1]} )); then
+            space_ready="Yes"
+        fi
+
+        echo "${src_disk_used[0]} | $mount | ${src_disk_used[1]} | ${tgt_disk_free_total[1]} | ${tgt_disk_free_total[2]} | $space_ready"
+    else
+        src_disk_used=(${SRC_MAP["$mount"]})
+        echo "${src_disk_used[0]} | $mount (Src) | ${src_disk_used[1]} | - | - | No"
+    fi
+done
+
+# Check if there are any mount points exclusive to the target.
+for mount in "${!TGT_MAP[@]}"; do
+    if [[ ! ${SRC_MAP["$mount"]} ]]; then
+        tgt_disk_free_total=(${TGT_MAP["$mount"]})
+        echo "${tgt_disk_free_total[0]} | $mount (Tgt) | - | ${tgt_disk_free_total[1]} | ${tgt_disk_free_total[2]} | No"
+    fi
+done
