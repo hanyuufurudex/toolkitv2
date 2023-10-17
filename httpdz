@@ -1,0 +1,42 @@
+rsync_etc_httpd() {
+
+    ssh "$TARGET_SERVER" "[ -d /etc/httpd ]"
+    if [[ $? -ne 0 ]]; then
+        echo "/etc/httpd missing on $TARGET_SERVER."
+        read -p "Do you want to install httpd related packages on $TARGET_SERVER? (y/n): " choice
+        case "$choice" in 
+            y|Y ) 
+                # Fetch httpd related packages from source server
+                HTTPD_PACKAGES=$(ssh "$SOURCE_SERVER" "rpm -qa | grep httpd")
+                if [[ -z "$HTTPD_PACKAGES" ]]; then
+                    echo "No httpd related packages found on $SOURCE_SERVER... Exiting."
+                    return 1
+                fi
+
+                # Install fetched packages on target server
+                echo "Installing httpd related packages on $TARGET_SERVER..."
+                ssh "$TARGET_SERVER" "yum install -y $HTTPD_PACKAGES"
+                if [[ $? -ne 0 ]]; then
+                    echo "Failed to install httpd packages on $TARGET_SERVER. Exiting."
+                    return 1
+                fi
+                ;;
+            n|N ) 
+                echo "Exiting."
+                return 1
+                ;;
+            * ) 
+                echo "Invalid choice... Exiting."
+                return 1
+                ;;
+        esac
+    fi
+
+    rsync -az -e "ssh" "$SOURCE_SERVER:/etc/httpd/" "$TARGET_SERVER:/etc/httpd/"
+    if [[ $? -eq 0 ]]; then
+        echo "Configuration copied for HTTPD"
+    else
+        echo "Script ran into an error..please try again."
+        return 2
+    fi
+}
