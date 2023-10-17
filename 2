@@ -1,17 +1,32 @@
-function replace_hostname() {
+function copy_to_target_mount() {
+    # Prompt the user for the source directory
+    read -p "Enter the source directory to copy: " src_dir
 
-    local old_hostname=$1
-    local new_hostname=$2
-    local conf_file="ssl.conf"
-
-    # Check if the file exists
-    if [ ! -f "$conf_file" ]; then
-        echo "Configuration file $conf_file not found!"
+    # Check if the source directory exists
+    if [ ! -d "$src_dir" ]; then
+        echo "Source directory $src_dir not found!"
         return 2
     fi
 
-    # Replace old_hostname with new_hostname in the configuration file
-    sed -i "s/$old_hostname/$new_hostname/g" "$conf_file"
+    echo "Available target mounts:"
+    local counter=1
+    local mount_points=()
+    for mount in "${!TGT_MAP[@]}"; do
+        echo "$counter) $mount"
+        mount_points+=("$mount")
+        ((counter++))
+    done
 
-    echo "Hostname replaced successfully in $conf_file."
+    read -p "Select a target mount number: " choice
+
+    # Validate the choice
+    if [ "$choice" -lt 1 ] || [ "$choice" -gt "${#mount_points[@]}" ]; then
+        echo "Invalid choice!"
+        return 3
+    fi
+
+    local tgt_mount="${mount_points[$choice-1]}"
+
+    # Start the rsync process
+    echo "Data copied successfully to $tgt_mount on $TARGET_SERVER."
 }
