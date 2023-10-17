@@ -1,0 +1,17 @@
+function replace_hostname() {
+
+    local old_hostname=$1
+    local new_hostname=$2
+    local conf_file="ssl.conf"
+
+    # Check if the file exists
+    if [ ! -f "$conf_file" ]; then
+        echo "Configuration file $conf_file not found!"
+        return 2
+    fi
+
+    # Replace old_hostname with new_hostname in the configuration file
+    sed -i "s/$old_hostname/$new_hostname/g" "$conf_file"
+
+    echo "Hostname replaced successfully in $conf_file."
+}
