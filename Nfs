@@ -1,0 +1,29 @@
+sync_nfs_mounts() {
+    # Get NFS mounts from the source and target servers
+    source_mounts=$(mount -t nfs | awk '{print $3}')
+    target_server="<TARGET_SERVER_IP>"  # Replace with the actual IP or hostname of the target server
+    target_mounts=$(ssh "$target_server" "mount -t nfs" | awk '{print $3}')
+
+    # Combine the mounts and remove duplicates
+    combined_mounts=$(echo "$source_mounts $target_mounts" | tr ' ' '\n' | sort | uniq)
+
+    # Now, find mounts that are on the source server but not on the target server
+    mounts_to_copy=$(comm -23 <(echo "$source_mounts" | sort) <(echo "$target_mounts" | sort))
+
+    echo "List of unique NFS mounts:"
+    select mount in $combined_mounts; do
+        if [ -z "$mount" ]; then
+            echo "Invalid selection."
+        else
+            if [[ $mounts_to_copy =~ $mount ]]; then
+                # Get the corresponding fstab entry from the source server
+                entry=$(grep " $mount " /etc/fstab)
+                ssh "$target_server" "echo '$entry' >> /etc/fstab"
+                echo "Copied $mount to $target_server's /etc/fstab."
+            else
+                echo "$mount is already present on the target server."
+            fi
+        fi
+        break
+    done
+}
