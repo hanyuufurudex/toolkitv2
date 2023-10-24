@@ -1,2 +1,1 @@
-# Create a variable that captures the leaf directory names of all NFS-mounted directories
-EXCLUDE_DIRS=$(mount -t nfs | awk -F'/' '{print $NF}' | while read dir; do echo "--exclude=$dir"; done)
+EXCLUDE_DIRS=$(mount -t nfs | awk -F' ' '{n=split($3,parts,"/"); print "--exclude="parts[n]}' | tr '\n' ' ')
