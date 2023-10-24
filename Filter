@@ -1,1 +1,6 @@
 EXCLUDE_DIRS=$(mount -t nfs | awk -F' ' '{n=split($3,parts,"/"); print "--exclude="parts[n]}' | tr '\n' ' ')
+
+IFS=',' read -ra ADDR <<< "$USER_EXCLUDES"
+for dir in "${ADDR[@]}"; do
+  USER_EXCLUDE_DIRS+="--exclude=$dir "
+done
