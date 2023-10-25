@@ -1,0 +1,39 @@
+replace_in_files() {
+  # Ask the user for directory input
+  read -p "Enter the directory path (e.g. /test1/direct1): " dir_path
+
+  # Check if the directory exists
+  if [[ ! -d "$dir_path" ]]; then
+    echo "Directory does not exist."
+    return
+  fi
+
+  # Prompt the user for source and target values
+  read -p "Enter the value for \$SOURCE_SERVER: " SOURCE_SERVER
+  read -p "Enter the value for \$TARGET_SERVER: " TARGET_SERVER
+
+  # Find all the .html files in the given directory
+  files_to_modify=$(find "$dir_path" -type f -name "*.html")
+
+  # Check if any files were found
+  if [[ -z "$files_to_modify" ]]; then
+    echo "No .html files found in the specified directory."
+    return
+  fi
+
+  # Show the files that will be modified and ask for confirmation
+  echo "Files to be modified:"
+  echo "$files_to_modify"
+  read -p "Do you want to continue with the replacements? (y/n): " confirmation
+
+  # If the user confirms, perform the replacement
+  if [[ "$confirmation" == "y" ]]; then
+    echo "Replacing $SOURCE_SERVER with $TARGET_SERVER in the files..."
+    for file in $files_to_modify; do
+      sed -i "s/$SOURCE_SERVER/$TARGET_SERVER/g" "$file"
+    done
+    echo "Replacement completed."
+  else
+    echo "Operation aborted by user."
+  fi
+}
