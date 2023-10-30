@@ -1,7 +1,7 @@
 select_keystore() {
-    
-    # Get a list of unique keystore paths and users from the process list
-    mapfile -t keystore_info < <(ps -ef | grep -oP '([a-zA-Z0-9]+)\s+\S+\s+-D(?:javax\.net\.ssl\.keyStore|keystore)=\K\S+' | sort -u)
+  
+    # Get a list of unique keystore paths and users from the /app directory
+    mapfile -t keystore_info < <(find /xyz -type f -name "*.keystore" -exec stat -c "%U %n" {} + | sort -u)
     
     # Check if any keystores were found
     if [[ ${#keystore_info[@]} -eq 0 ]]; then
