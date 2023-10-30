@@ -1,7 +1,16 @@
 select_keystore() {
-  
+
+    # Create a temporary file to hold the keystore info
+    temp_file=$(mktemp)
+    
     # Get a list of unique keystore paths and users from the /app directory
-    mapfile -t keystore_info < <(find /xyz -type f -name "*.keystore" -exec stat -c "%U %n" {} + | sort -u)
+    find /app -type f -name "*.keystore" | xargs -I{} stat -c "%U %n" {} | sort -u > "$temp_file"
+    
+    # Read the keystore info from the temporary file into an array
+    mapfile -t keystore_info < "$temp_file"
+    
+    # Delete the temporary file
+    rm "$temp_file"
     
     # Check if any keystores were found
     if [[ ${#keystore_info[@]} -eq 0 ]]; then
@@ -32,7 +41,5 @@ select_keystore() {
     selected_keystore=${keystore_info[$((selection - 1))]##* }
     
     # Replicate the selected keystore on the target server
-    ssh "$TARGET_SERVER" "keytool -importkeystore -alias test -deststorepass $PASSWORD -destkeystore $selected_keystore -srckeystore $selected_keystore"
-    
-    echo "Keystore replicated on $TARGET_SERVER."
+
 }
