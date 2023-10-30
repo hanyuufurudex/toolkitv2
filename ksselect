@@ -1,0 +1,38 @@
+select_keystore() {
+    
+    # Get a list of unique keystore paths and users from the process list
+    mapfile -t keystore_info < <(ps -ef | grep -oP '([a-zA-Z0-9]+)\s+\S+\s+-D(?:javax\.net\.ssl\.keyStore|keystore)=\K\S+' | sort -u)
+    
+    # Check if any keystores were found
+    if [[ ${#keystore_info[@]} -eq 0 ]]; then
+        echo "No Java keystores detected."
+        return 1
+    fi
+    
+    # Print a menu of keystores
+    echo "Select a Java keystore:"
+    for i in "${!keystore_info[@]}"; do
+        echo "$((i + 1)). User: ${keystore_info[i]%% *}, Keystore: ${keystore_info[i]##* }"
+    done
+    
+    # Prompt the user for their selection
+    while :; do
+        read -p "Enter the number of your selection (or 'q' to quit): " selection
+        if [[ $selection == 'q' ]]; then
+            return 1
+        elif [[ $selection -ge 1 ]] && [[ $selection -le ${#keystore_info[@]} ]]; then
+            break
+        else
+            echo "Invalid selection. Please try again."
+        fi
+    done
+    
+    # Extract user and keystore from selection
+    selected_user=${keystore_info[$((selection - 1))]%% *}
+    selected_keystore=${keystore_info[$((selection - 1))]##* }
+    
+    # Replicate the selected keystore on the target server
+    ssh "$TARGET_SERVER" "keytool -importkeystore -alias test -deststorepass $PASSWORD -destkeystore $selected_keystore -srckeystore $selected_keystore"
+    
+    echo "Keystore replicated on $TARGET_SERVER."
+}
