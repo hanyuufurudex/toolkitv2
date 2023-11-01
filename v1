@@ -22,7 +22,7 @@ transfer_user() {
     done
 }
 
-# Function to transfer data with disk space check and excluding NFS mounts
+# Function to transfer data with disk space check, excluding NFS mounts and certain file types
 transfer_data() {
     IFS=',' read -ra ADDR <<< "$DISKS_TO_TRANSFER"
     for disk in "${ADDR[@]}"; do
@@ -30,6 +30,15 @@ transfer_data() {
 
         # Generate exclude options for NFS mounts under this disk on the source server
         EXCLUDE_DIRS=$(ssh "$SOURCE_SERVER" "mount -t nfs | grep '$disk' | awk -F' ' '{n=split(\$3,parts,\"/\"); print \"--exclude=\"parts[n]}'" | tr '\n' ' ')
+
+        # Initialize file exclusion options
+        EXCLUDE_FILES_OPTS=""
+
+        # Generate exclude options for file types
+        IFS=',' read -ra EXCLUDE_PATTERNS <<< "$EXCLUDE_FILES"
+        for pattern in "${EXCLUDE_PATTERNS[@]}"; do
+            EXCLUDE_FILES_OPTS+=" --exclude=$pattern"
+        done
 
         # Get the size of the directory on the source server
         local size_source=$(ssh "$SOURCE_SERVER" "du -s '$disk' | cut -f1")
@@ -39,12 +48,13 @@ transfer_data() {
 
         if [ "$size_source" -lt "$size_target" ]; then
             echo "Sufficient space found. Transferring $disk with exclusions..."
-            rsync -avzP --perms --progress -e ssh $EXCLUDE_DIRS "$SOURCE_SERVER:$disk" "$disk"
+            rsync -avzP --perms --progress -e ssh $EXCLUDE_DIRS $EXCLUDE_FILES_OPTS "$SOURCE_SERVER:$disk" "$disk"
         else
             echo "Not enough space on target for $disk. Transfer skipped."
         fi
     done
 }
+
 
 # Function to process config files
 process_config_files() {
