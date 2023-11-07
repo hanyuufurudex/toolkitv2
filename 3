@@ -1,0 +1,33 @@
+read_keystore_info() {
+  local config_file="auto.config"
+  local keystore_line
+  local keystore_path
+  local keystore_alias
+  local keystore_password
+
+  # Extract the line containing the KEYSORE variable from the config file
+  keystore_line=$(grep "^KEYSTORE=" "$config_file")
+
+  # Remove the variable name to keep only the value
+  keystore_line=${keystore_line#KEYSTORE=}
+
+  if [[ -n $keystore_line ]]; then
+    # Split the KEYSORE entry into an array using comma as delimiter
+    IFS=',' read -ra ADDR <<< "$keystore_line"
+
+    # Each component is then further split by the delimiter (assuming ':' as the value delimiter)
+    IFS=':' read -ra KEYPARTS <<< "${ADDR[0]}"
+    keystore_path=${KEYPARTS[0]}
+    keystore_alias=${KEYPARTS[1]}
+    keystore_password=${KEYPARTS[2]}
+
+    echo "Keystore Path: $keystore_path"
+    echo "Keystore Alias: $keystore_alias"
+    echo "Keystore Password: $keystore_password"
+  else
+    echo "The KEYSORE variable was not found in the config file."
+  fi
+}
+
+# Call the function
+read_keystore_info
