@@ -1,9 +1,15 @@
 #!/bin/bash
 
+# Function to check if a directory is a network share
+is_network_share() {
+    local dir_path="$1"
+    mount | grep -q "on ${dir_path} type"
+}
+
 # Function for handling network-shared directories for size calculation
 calculate_size() {
     local dir_path="$1"
-    if ! mount | grep -q "on ${dir_path} type"; then
+    if ! is_network_share "$dir_path"; then
         du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null
     fi
 }
@@ -19,7 +25,7 @@ echo "Estimated uncompressed size of the archive: ${total_size}K"
 # Function for handling network-shared directories for archiving
 handle_network_shares() {
     local dir_path="$1"
-    if mount | grep -q "on ${dir_path} type"; then
+    if is_network_share "$dir_path"; then
         mkdir -p "network_shares_backup${dir_path}"
         tar --append --file=backup.tar.gz -C network_shares_backup "${dir_path#"/"}"
         rm -rf "network_shares_backup${dir_path}"
