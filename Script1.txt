@@ -33,19 +33,16 @@ calculate_directory_size() {
         fi
     done
 
-    return $total_size
+    echo $total_size
 }
 
 # Calculate size of directories
 total_size=0
 for dir in /app /data /home /etc/httpd/conf; do
-    size=0
-    calculate_directory_size "$dir"
-    size=$?
+    size=$(calculate_directory_size "$dir")
     total_size=$((total_size + size))
 done
 echo "Estimated uncompressed size of the archive: ${total_size}K"
-
 
 # Function for handling network-shared directories for archiving
 handle_network_shares() {
