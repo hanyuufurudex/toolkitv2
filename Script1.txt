@@ -1,22 +1,29 @@
 #!/bin/bash
 
-# Function for calculating directory size, excluding network shares
+# Function to check if the directory itself is a network share
+is_direct_network_share() {
+    local dir_path="$1"
+    mount | grep -qs "on ${dir_path} type"
+}
+
+# Function for calculating size, excluding network shares
 calculate_size() {
     local dir_path="$1"
-    # Check if the directory exists and is not a network share
-    if [ -d "$dir_path" ] && ! mount | grep -qs "$dir_path"; then
-        # Calculate size with exclusions
-        du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null
+    if [ -d "$dir_path" ]; then
+        if ! is_direct_network_share "$dir_path"; then
+            du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null
+        fi
     fi
 }
 
 # Calculate size of directories
 total_size=0
 for dir in /app /data /home /etc/httpd/conf; do
-    size=$(calculate_size "$dir" | cut -f1)
+    size=$(calculate_size "$dir" | awk '{print $1}')
     total_size=$((total_size + size))
 done
 echo "Estimated uncompressed size of the archive: ${total_size}K"
+
 
 # Function for handling network-shared directories for archiving
 handle_network_shares() {
