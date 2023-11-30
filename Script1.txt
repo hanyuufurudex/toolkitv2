@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# Function for handling network-shared directories for size calculation
+calculate_size() {
+    local dir_path="$1"
+    if ! mount | grep -q "on ${dir_path} type"; then
+        du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null
+    fi
+}
+
+# Calculate size of the directories
+total_size=0
+for dir in /app /data /home /etc/httpd/conf; do
+    size=$(calculate_size "$dir" | cut -f1)
+    total_size=$((total_size + size))
+done
+echo "Estimated uncompressed size of the archive: ${total_size}K"
+
+# Function for handling network-shared directories for archiving
+handle_network_shares() {
+    local dir_path="$1"
+    if mount | grep -q "on ${dir_path} type"; then
+        mkdir -p "network_shares_backup${dir_path}"
+        tar --append --file=backup.tar.gz -C network_shares_backup "${dir_path#"/"}"
+        rm -rf "network_shares_backup${dir_path}"
+    else
+        tar --append --file=backup.tar.gz --preserve-permissions --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' -C / "${dir_path#"/"}"
+    fi
+}
+
+# Create initial tar.gz archive with no files (will append files later)
+tar -czf backup.tar.gz --files-from=/dev/null
+
+# Append directories to archive, handling network shares
+handle_network_shares "/app"
+handle_network_shares "/data"
+handle_network_shares "/home"
+
+
+# Initialize SysList.txt with headers
+echo "# Packages to Install" > SysList.txt
+echo "httpd" >> SysList.txt
+echo "" >> SysList.txt
+echo "# FQDN and IP Replacements" >> SysList.txt
+
+# Find .properties and .config files, list FQDNs, IPs, and file paths
+find /app /data /home -type f \( -name "*.properties" -o -name "*.config" \) | while read file; do
+    if grep -q -P "\b\w+\.\w+\.\w+\b|\b\d{1,3}(\.\d{1,3}){3}\b" "$file"; then
+        echo "File: $file" >> SysList.txt
+        grep -oP "\b\w+\.\w+\.\w+\b" "$file" | while read fqdn; do
+            echo "${fqdn}:REPLACE_VALUE_HERE" >> SysList.txt
+        done
+        grep -oP "\b\d{1,3}(\.\d{1,3}){3}\b" "$file" | while read ip; do
+            echo "${ip}:REPLACE_VALUE_HERE" >> SysList.txt
+        done
+    fi
+done
+
+# Compress the final tar file
+gzip -f /tmp/backup.tar.gz

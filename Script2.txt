@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Untar the archive at the root directory
+tar -xzf backup.tar.gz -C /
+
+# Initialize variables
+mode=""
+file_to_modify=""
+
+# Process SysList.txt
+while IFS= read -r line; do
+    # Skip empty lines and comments
+    [[ -z "$line" || ${line:0:1} == "#" ]] && continue
+
+    if [[ "$line" == "# Packages to Install" ]]; then
+        mode="install"
+        continue
+    elif [[ "$line" == "# FQDN and IP Replacements" ]]; then
+        mode="replace"
+        continue
+    fi
+
+    case $mode in
+        "install")
+            yum install -y "$line" || echo "Failed to install $line" >> migration_errors.log
+            ;;
+        "replace")
+            if [[ $line == File:* ]]; then
+                file_to_modify="${line#File: }"
+            else
+                fqdn=${line%%:*}
+                replacement=${line##*:}
+                if [[ -n $file_to_modify ]]; then
+                    sed -i "s/$fqdn/$replacement/g" "$file_to_modify" || echo "Failed to replace $fqdn in $file_to_modify" >> migration_errors.log
+                fi
+            fi
+            ;;
+    esac
+done < SysList.txt
