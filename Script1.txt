@@ -1,23 +1,12 @@
 #!/bin/bash
 
-# Function to check if a directory is a network share
-is_network_share() {
-    local dir_path="$1"
-    mount | grep -q "on ${dir_path} type"
-}
-
-# Function for calculating size
+# Function for calculating directory size, excluding network shares
 calculate_size() {
     local dir_path="$1"
-    if [ -d "$dir_path" ]; then
-        echo "Calculating size for: $dir_path"
-        if ! is_network_share "$dir_path"; then
-            du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null
-        else
-            echo "$dir_path is a network share, skipping."
-        fi
-    else
-        echo "$dir_path does not exist."
+    # Check if the directory exists and is not a network share
+    if [ -d "$dir_path" ] && ! mount | grep -qs "$dir_path"; then
+        # Calculate size with exclusions
+        du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null
     fi
 }
 
