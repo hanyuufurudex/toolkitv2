@@ -1,38 +1,46 @@
 #!/bin/bash
 
-# Function to check if the directory itself is a network share
-is_direct_network_share() {
+# Function to check if a directory is a network share
+is_network_share() {
     local dir_path="$1"
     mount | grep -qs "on ${dir_path} type"
 }
 
-# Function for calculating size, excluding network shares, and following symlinks
-calculate_size() {
+# Function for calculating size, handling subdirectories and excluding network shares
+calculate_directory_size() {
     local dir_path="$1"
-    # Resolve the symbolic link if there is one
-    local resolved_path=$(readlink -f "$dir_path")
-    if [ -d "$resolved_path" ]; then
-        echo "Checking directory: $resolved_path"
-        if ! is_direct_network_share "$resolved_path"; then
-            local size
-            size=$(du -sL --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$resolved_path" 2>/dev/null | awk '{print $1}')
-            echo "Size of $resolved_path (originally $dir_path): ${size}K"
-            return $size
+    local total_size=0
+
+    # Process each item in the directory
+    find "$dir_path" -mindepth 1 -maxdepth 1 | while read -r subitem; do
+        if [ -d "$subitem" ]; then
+            # If it's a directory, check if it's a network share
+            if ! is_network_share "$subitem"; then
+                # Calculate size for non-network directories
+                local size
+                size=$(du -sL --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$subitem" 2>/dev/null | awk '{print $1}')
+                echo "Size of $subitem: ${size}K"
+                total_size=$((total_size + size))
+            else
+                echo "$subitem is a network share, skipping."
+            fi
         else
-            echo "$resolved_path (originally $dir_path) is a network share, skipping."
-            return 0
+            # Handle regular files directly
+            local size
+            size=$(du -sL --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*..err' --exclude='*.trace' "$subitem" 2>/dev/null | awk '{print $1}')
+            echo "Size of $subitem: ${size}K"
+            total_size=$((total_size + size))
         fi
-    else
-        echo "$resolved_path (originally $dir_path) does not exist."
-        return 0
-    fi
+    done
+
+    return $total_size
 }
 
 # Calculate size of directories
 total_size=0
 for dir in /app /data /home /etc/httpd/conf; do
     size=0
-    calculate_size "$dir"
+    calculate_directory_size "$dir"
     size=$?
     total_size=$((total_size + size))
 done
