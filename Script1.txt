@@ -20,6 +20,12 @@ calculate_size() {
             local size
             size=$(du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null | awk '{print $1}')
             echo "Size of $dir_path: ${size}K"
+
+            if [ "$size" -eq 0 ]; then
+                echo "Contents of $dir_path:"
+                ls -lah "$dir_path"
+            fi
+
             return $size
         else
             echo "$dir_path is a network share, skipping."
