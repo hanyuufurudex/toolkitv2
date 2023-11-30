@@ -3,36 +3,27 @@
 # Function to check if the directory itself is a network share
 is_direct_network_share() {
     local dir_path="$1"
-    if mount | grep -qs "on ${dir_path} type"; then
-        echo "$dir_path is a direct network share."
-        return 0
-    else
-        return 1
-    fi
+    mount | grep -qs "on ${dir_path} type"
 }
 
-# Function for calculating size, excluding network shares
+# Function for calculating size, excluding network shares, and following symlinks
 calculate_size() {
     local dir_path="$1"
-    if [ -d "$dir_path" ]; then
-        echo "Checking directory: $dir_path"
-        if ! is_direct_network_share "$dir_path"; then
+    # Resolve the symbolic link if there is one
+    local resolved_path=$(readlink -f "$dir_path")
+    if [ -d "$resolved_path" ]; then
+        echo "Checking directory: $resolved_path"
+        if ! is_direct_network_share "$resolved_path"; then
             local size
-            size=$(du -s --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$dir_path" 2>/dev/null | awk '{print $1}')
-            echo "Size of $dir_path: ${size}K"
-
-            if [ "$size" -eq 0 ]; then
-                echo "Contents of $dir_path:"
-                ls -lah "$dir_path"
-            fi
-
+            size=$(du -sL --exclude='*.hprof' --exclude='*.log' --exclude='*.out' --exclude='*.dmp' --exclude='*.err' --exclude='*.trace' "$resolved_path" 2>/dev/null | awk '{print $1}')
+            echo "Size of $resolved_path (originally $dir_path): ${size}K"
             return $size
         else
-            echo "$dir_path is a network share, skipping."
+            echo "$resolved_path (originally $dir_path) is a network share, skipping."
             return 0
         fi
     else
-        echo "$dir_path does not exist."
+        echo "$resolved_path (originally $dir_path) does not exist."
         return 0
     fi
 }
