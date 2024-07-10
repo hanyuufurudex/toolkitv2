@@ -1,0 +1,20 @@
+async function runQuery(contentId) {
+  try {
+    await sql.connect(config);
+    const request = new sql.Request();
+    request.input('contentId', sql.Int, contentId); // Binding the parameter
+    const query = `
+      SELECT *
+      FROM ContentTable
+      WHERE ContentId = @contentId
+    `;
+    const result = await request.query(query); // Using the request object to execute the query
+
+    console.log(result.recordset);
+    return result.recordset; // Returns the rows fetched from the database
+  } catch (err) {
+    console.error('Error running query', err);
+  } finally {
+    await sql.close();
+  }
+}
