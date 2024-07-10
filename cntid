@@ -1,20 +1,36 @@
-async function runQuery(contentId) {
+const express = require('express');
+const bodyParser = require('body-parser');
+const sql = require('mssql');
+const app = express();
+
+app.set('view engine', 'ejs');
+app.use(bodyParser.urlencoded({ extended: false }));
+
+
+app.get('/', (req, res) => {
+  res.render('index');
+});
+
+app.post('/search', async (req, res) => {
   try {
     await sql.connect(config);
     const request = new sql.Request();
-    request.input('contentId', sql.Int, contentId); // Binding the parameter
-    const query = `
+    request.input('contentId', sql.Int, req.body.contentId);
+    const result = await request.query(`
       SELECT *
       FROM ContentTable
       WHERE ContentId = @contentId
-    `;
-    const result = await request.query(query); // Using the request object to execute the query
-
-    console.log(result.recordset);
-    return result.recordset; // Returns the rows fetched from the database
+    `);
+    res.render('results', { data: result.recordset });
   } catch (err) {
     console.error('Error running query', err);
+    res.send('Failed to retrieve data');
   } finally {
     await sql.close();
   }
-}
+});
+
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
+});
