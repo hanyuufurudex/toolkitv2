@@ -1,36 +1,31 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const sql = require('mssql');
-const app = express();
-
-app.set('view engine', 'ejs');
-app.use(bodyParser.urlencoded({ extended: false }));
-
-
-app.get('/', (req, res) => {
-  res.render('index');
-});
-
-app.post('/search', async (req, res) => {
-  try {
-    await sql.connect(config);
-    const request = new sql.Request();
-    request.input('contentId', sql.Int, req.body.contentId);
-    const result = await request.query(`
-      SELECT *
-      FROM ContentTable
-      WHERE ContentId = @contentId
-    `);
-    res.render('results', { data: result.recordset });
-  } catch (err) {
-    console.error('Error running query', err);
-    res.send('Failed to retrieve data');
-  } finally {
-    await sql.close();
-  }
-});
-
-const port = 3000;
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
-});
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results</title>
+</head>
+<body>
+    <h1>Results</h1>
+    <table border="1">
+        <tr>
+            <th>Create Date</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Field Name</th>
+            <th>Original Value</th>
+            <th>New Value</th>
+        </tr>
+        <% data.forEach(function(row) { %>
+            <tr>
+                <td><%= row.Create_date %></td>
+                <td><%= row.First_name %></td>
+                <td><%= row.Last_name %></td>
+                <td><%= row.Field_name %></td>
+                <td><%= row.Original_Value %></td>
+                <td><%= row.New_Value %></td>
+            </tr>
+        <% }); %>
+    </table>
+</body>
+</html>
