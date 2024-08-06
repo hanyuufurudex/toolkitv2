@@ -1,0 +1,38 @@
+# Define the LDAP server and specific user DN
+$ldapServer = "test.com:636"
+$userDN = ""
+
+# Credentials for authentication
+$username = "USERNAME@test.com" # Often this is just the sAMAccountName
+$password = "yourPassword"
+
+# Convert the password to a secure string
+$securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+
+# Create a PSCredential object
+$credential = New-Object System.Management.Automation.PSCredential($username, $securePassword)
+
+# Create a DirectoryEntry object with the user DN and credentials
+$directoryEntry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$ldapServer/$userDN", $credential.UserName, $credential.GetNetworkCredential().Password)
+
+# Create a DirectorySearcher object
+$searcher = New-Object System.DirectoryServices.DirectorySearcher($directoryEntry)
+
+# Specify the filter for the search, e.g., specific properties or a wider search
+$searcher.Filter = "(objectClass=user)"
+
+# Specify properties to load, e.g., common name and email
+$searcher.PropertiesToLoad.Add("cn") > $null
+$searcher.PropertiesToLoad.Add("mail") > $null
+
+# Perform the search
+$results = $searcher.FindAll()
+
+# Output the results
+foreach ($result in $results) {
+    $cn = $result.Properties["cn"][0]
+}
+
+# Clean up resources
+$searcher.Dispose()
+$directoryEntry.Dispose()
