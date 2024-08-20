@@ -1,0 +1,60 @@
+---
+- name: Manage File Permissions and Logs
+  hosts: your_target_hosts
+  vars:
+    log_directory: "/path/to/logs"
+    log_file: "{{ log_directory }}/wwf_log_{{ lookup('pipe', 'date +%Y-%m-%d') }}.txt"
+    command_to_generate_files: "your_command_here | another_command > {{ log_directory }}/your_full_ls_output.txt"  # Adjust this line
+  tasks:
+    - name: Create log directory if it doesn't exist
+      ansible.builtin.file:
+        path: "{{ log_directory }}"
+        state: directory
+        mode: '0755'
+
+    - name: Generate the file list
+      ansible.builtin.shell: "{{ command_to_generate_files }}"
+      register: generation_result
+      ignore_errors: true
+      changed_when: "generation_result.rc == 0"
+
+    - name: Check if the file list was created successfully
+      ansible.builtin.stat:
+        path: "{{ log_directory }}/your_full_ls_output.txt"
+      register: file_stat
+
+    - name: Change permissions of files
+      ansible.builtin.command: "chmod o-w {{ item }}"
+      with_lines: "cat {{ log_directory }}/your_full_ls_output.txt | awk '{print $NF}'"
+      when: file_stat.stat.exists
+      register: chmod_output
+      notify: log permission changes
+
+    - name: Find and delete old log files
+      ansible.builtin.find:
+        paths: "{{ log_directory }}"
+        patterns: "wwf_log_*.txt"
+        age: "30d"
+        recurse: yes
+      register: old_logs
+
+    - name: Remove old log files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      with_items: "{{ old_logs.files }}"
+      when: old_logs.matched > 0
+      notify: log old files deletion
+
+  handlers:
+    - name: log permission changes
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "Changed permissions for {{ item.item }}"
+      loop: "{{ chmod_output.results }}"
+      when: item.rc == 0
+
+    - name: log old files deletion
+      ansible.builtin.lineinfile:
+        path: "{{ log_file }}"
+        line: "Old log files deleted."
