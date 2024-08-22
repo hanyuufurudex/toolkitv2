@@ -1,18 +1,14 @@
----
-- name: Automate with Hostname
-  hosts: all
-  gather_facts: yes  # Ensures that facts are gathered, including the hostname
-
+- hosts: all
   tasks:
-    - name: Print the hostname
-      ansible.builtin.debug:
-        msg: "The hostname is {{ ansible_hostname }}."
+    - name: Get current date
+      ansible.builtin.set_fact:
+        current_date: "{{ lookup('pipe', 'date +%Y%m%d') }}"
 
-    - name: Create a file named after the hostname
-      ansible.builtin.file:
-        path: "/tmp/{{ ansible_hostname }}_output.txt"
-        state: touch
+    - name: Extract file paths using awk
+      ansible.builtin.shell: "awk '{print $1}' /var/tmp/filelist.txt"
+      register: awk_output
 
-    - name: Run a command using the hostname
+    - name: Change permissions and log the changes
       ansible.builtin.shell: |
-        echo "This is {{ ansible_hostname }}" > /tmp/{{ ansible_hostname }}_details.txt
+        chmod o-w {{ item }} && echo "{{ item }} permissions changed" >> /tmp/log_{{ current_date }}.txt
+      loop: "{{ awk_output.stdout_lines }}"
