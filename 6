@@ -1,15 +1,1 @@
-- hosts: all
-  tasks:
-    - name: Get current date
-      ansible.builtin.set_fact:
-        current_date: "{{ lookup('pipe', 'date +%Y%m%d') }}"
-
-    - name: Extract file paths using awk
-      ansible.builtin.shell: "awk '{print $1}' /var/tmp/filelist.txt"
-      register: awk_output
-
-    - name: Change permissions on all files in one go
-      ansible.builtin.shell: |
-        chmod_cmd="chmod o-w {{ awk_output.stdout_lines | join(' ') }}"
-        log_cmd="echo '{{ awk_output.stdout_lines | join(', ') }} permissions changed' >> /tmp/log_{{ current_date }}.txt"
-        echo "$chmod_cmd && $log_cmd" | sudo su -
+chmod_cmd="chmod o-w {{ awk_output.stdout_lines | map('regex_replace', '(.*)', '\"\\1\"') | join(' ') }}"
