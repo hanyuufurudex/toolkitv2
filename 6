@@ -1,1 +1,1 @@
-chmod_cmd="chmod o-w {{ awk_output.stdout_lines | map('regex_replace', '(.*)', '\"\\1\"') | join(' ') }}"
+chmod_cmd="chmod o-w {{ awk_output.stdout_lines | map('regex_replace', '^(.*)$', '\"\\1\"') | join(' ') }}"
