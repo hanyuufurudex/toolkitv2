@@ -1,1 +1,31 @@
-'{slash_index = index($0, \"/\"); print \"\\\"\" substr($0, slash_index) \"\\\"\"}'
+#!/bin/bash
+
+# Get current date for log filename
+current_date=$(date '+%Y-%m-%d')
+log_file="change_log_$current_date.log"
+revert_script="revert_permissions_$current_date.sh"
+
+# Prepare the revert script
+echo "#!/bin/bash" > "$revert_script"
+chmod +x "$revert_script"
+
+# Read each file path from filelist.txt and process
+while IFS= read -r file; do
+  if [ -f "$file" ]; then
+    # Get current permissions using stat
+    original_perms=$(stat -c "%a" "$file")
+    
+    # Remove global write permission and update the file
+    chmod o-w "$file"
+    
+    # Log the change
+    echo "Changed $file - original perms $original_perms" >> "$log_file"
+    
+    # Add revert command to the revert script
+    echo "chmod $original_perms '$file'" >> "$revert_script"
+  else
+    echo "File does not exist: $file" >> "$log_file"
+  fi
+done < "filelist.txt"
+
+echo "Permissions updated. Log and revert script are generated."
