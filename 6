@@ -1,18 +1,9 @@
-- name: Read ls -ltr output from file.txt
-  shell: cat /path/to/file.txt
-  register: ls_output
-
-- name: Generate revert.sh script
-  copy:
-    dest: /path/to/revert.sh
-    content: |
-      {% for line in ls_output.stdout_lines %}
-      {% if line|length > 1 %}
-      {% set parts = line.split() %}
-      {% set perms = parts[0] %}
-      {% set file = parts[8] %}
-      chmod {{ perms }} "{{ file }}"
-      {% endif %}
-      {% endfor %}
-    mode: '0755'
-  when: ls_output.stdout_lines|length > 0
+- name: Generate revert.sh script with numeric permissions
+  shell: |
+    while IFS='' read -r line || [[ -n "$line" ]]; do
+      file=$(echo "$line" | awk '{print substr($0, index($0,$9))}')  # Extracting everything from the ninth field onward
+      numeric_perms=$(stat -c "%a" "$file")                         # Getting numeric permissions of the file
+      echo "chmod $numeric_perms \"$file\"" >> /path/to/revert.sh   # Appending chmod command to revert.sh
+    done < /path/to/file.txt
+  args:
+    executable: /bin/bash
