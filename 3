@@ -1,0 +1,16 @@
+<configuration>
+    <system.webServer>
+        <rewrite>
+            <rules>
+                <rule name="Redirect mobile users to website2" stopProcessing="true">
+                    <match url="^(.*)" />
+                    <conditions>
+                        <!-- This condition checks if the user-agent is mobile -->
+                        <add input="{HTTP_USER_AGENT}" pattern="iphone|android|blackberry|mobile" />
+                    </conditions>
+                    <action type="Redirect" url="http://website2.com/{R:1}" redirectType="Permanent" />
+                </rule>
+            </rules>
+        </rewrite>
+    </system.webServer>
+</configuration>
