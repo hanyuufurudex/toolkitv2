@@ -1,0 +1,10 @@
+{
+  "/api": {
+    "target": "http://example.com",
+    "secure": false,
+    "changeOrigin": true,
+    "onProxyRes": function (proxyRes, req, res) {
+      proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+    }
+  }
+}
