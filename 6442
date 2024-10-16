@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+
+import json
+import sys
+import argparse
+import requests
+
+def fetch_json_data(url, headers=None, params=None):
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching JSON data: {e}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON data: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def generate_inventory(data):
+    inventory = {
+        "all": {
+            "hosts": [],
+            "vars": {}
+        },
+        "environments": {},
+        "codes": {},
+        "_meta": {
+            "hostvars": {}
+        }
+    }
+
+    source = data.get('source', [])
+    if not isinstance(source, list):
+        print("Invalid JSON structure: 'source' key missing or not a list", file=sys.stderr)
+        sys.exit(1)
+
+    for item in source:
+        fqdn = item.get('fqdn')
+        environment = item.get('environment')
+        code = item.get('code')
+
+        if not fqdn:
+            print("Warning: An item in 'source' does not have 'fqdn'", file=sys.stderr)
+            continue
+
+        # Add to 'all' group
+        inventory['all']['hosts'].append(fqdn)
+
+        # Initialize environment group
+        if environment:
+            env_group = environment
+            if env_group not in inventory['environments']:
+                inventory['environments'][env_group] = {"hosts": [], "children": {}}
+            inventory['environments'][env_group]['hosts'].append(fqdn)
+
+            # Initialize code subgroup within environment
+            if code:
+                code_group = f"code_{code}"
+                if code_group not in inventory['environments'][env_group]['children']:
+                    inventory['environments'][env_group]['children'][code_group] = {"hosts": []}
+                inventory['environments'][env_group]['children'][code_group]['hosts'].append(fqdn)
+        else:
+            print(f"Warning: Host {fqdn} does not have 'environment'", file=sys.stderr)
+
+        # Initialize code group in 'codes'
+        if code:
+            if code not in inventory['codes']:
+                inventory['codes'][code] = {"hosts": []}
+            inventory['codes'][code]['hosts'].append(fqdn)
+        else:
+            print(f"Warning: Host {fqdn} does not have 'code'", file=sys.stderr)
+
+        # Optionally, add host-specific variables
+        host_vars = {k: v for k, v in item.items() if k not in ['fqdn', 'environment', 'code']}
+        if host_vars:
+            inventory['_meta']['hostvars'][fqdn] = host_vars
+
+    return inventory
+
+def main():
+    parser = argparse.ArgumentParser(description='Dynamic Inventory Script for Ansible with Nested Groups')
+    parser.add_argument('--list', action='store_true', help='List all hosts')
+    parser.add_argument('--host', help='Get variables for a specific host')  # Optional: Implement if needed
+    parser.add_argument('--url', required=True, help='URL to fetch JSON data')
+    parser.add_argument('--headers', help='HTTP headers as JSON string', default='{}')
+    parser.add_argument('--params', help='HTTP GET parameters as JSON string', default='{}')
+
+    args = parser.parse_args()
+
+    if args.host:
+        # Host-specific variables can be implemented here
+        # For simplicity, returning empty
+        print(json.dumps({}))
+        sys.exit(0)
+
+    if args.list:
+        # Parse headers and params if provided
+        try:
+            headers = json.loads(args.headers)
+        except json.JSONDecodeError:
+            print("Error parsing headers JSON", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            params = json.loads(args.params)
+        except json.JSONDecodeError:
+            print("Error parsing params JSON", file=sys.stderr)
+            sys.exit(1)
+
+        # Fetch JSON data from the URL
+        data = fetch_json_data(args.url, headers=headers, params=params)
+
+        # Generate inventory
+        inventory = generate_inventory(data)
+
+        # Output the inventory in JSON format
+        print(json.dumps(inventory, indent=2))
+        sys.exit(0)
+
+    # If no arguments provided, show help
+    parser.print_help()
+    sys.exit(1)
+
+if __name__ == '__main__':
+    main()
