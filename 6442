@@ -2,29 +2,144 @@
 
 import json
 import sys
-import argparse
 import requests
+import logging
+import os
 
-def fetch_json_data(url, headers=None, params=None):
+# ---------------------------
+# Configuration Section
+# ---------------------------
+
+# Static URL to fetch the JSON data
+JSON_DATA_URL = "https://api.example.com/hosts"  # Replace with your actual URL
+
+# Static payload for the HTTP request (if using POST). If using GET, set to None.
+PAYLOAD = {
+    "param1": "value1",
+    "param2": "value2"
+}  # Replace with your actual payload or set to None for GET requests
+
+# Static headers for the HTTP request
+HTTP_HEADERS = {
+    "Authorization": "Bearer YOUR_API_TOKEN",  # Replace with your actual token
+    "Content-Type": "application/json"
+}
+
+# Proxy settings (optional). Set to None if not using a proxy.
+PROXIES = {
+    "http": "http://proxy.example.com:8080",
+    "https": "https://proxy.example.com:8080",
+}
+
+# Cache configuration (optional)
+CACHE_FILE = '/tmp/dynamic_inventory_cache.json'
+CACHE_TTL = 300  # Cache Time-To-Live in seconds
+
+# Logging configuration
+LOG_FILE = '/var/log/ansible/dynamic_inventory.log'
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s:%(message)s'
+)
+
+# ---------------------------
+# End of Configuration
+# ---------------------------
+
+def fetch_json_data(url, headers=None, payload=None, proxies=None):
+    """
+    Fetches JSON data from the specified URL using HTTP GET or POST.
+
+    Args:
+        url (str): The URL to fetch data from.
+        headers (dict): HTTP headers to include in the request.
+        payload (dict or None): Payload for POST requests. If None, a GET request is made.
+        proxies (dict or None): Proxy settings for the request.
+
+    Returns:
+        dict: Parsed JSON response.
+
+    Exits:
+        On request failure or JSON decoding error.
+    """
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=10)
+        if payload:
+            response = requests.post(url, headers=headers, json=payload, proxies=proxies, timeout=10)
+            logging.info(f"Sent POST request to {url} with payload: {payload}")
+        else:
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+            logging.info(f"Sent GET request to {url}")
+
         response.raise_for_status()
+        logging.info(f"Received response from {url}: {response.status_code}")
         return response.json()
+    except requests.exceptions.ProxyError as e:
+        logging.error(f"Proxy error while connecting to {url}: {e}")
+        print(f"Proxy error: {e}", file=sys.stderr)
+        sys.exit(1)
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching JSON data: {e}", file=sys.stderr)
+        logging.error(f"HTTP request error while connecting to {url}: {e}")
+        print(f"HTTP request error: {e}", file=sys.stderr)
         sys.exit(1)
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON data: {e}", file=sys.stderr)
+        logging.error(f"JSON decoding error: {e}")
+        print(f"JSON decoding error: {e}", file=sys.stderr)
         sys.exit(1)
 
+def fetch_json_data_with_cache(url, headers=None, payload=None, proxies=None):
+    """
+    Fetches JSON data with caching. Uses cached data if it's fresh.
+
+    Args:
+        url (str): The URL to fetch data from.
+        headers (dict): HTTP headers to include in the request.
+        payload (dict or None): Payload for POST requests.
+        proxies (dict or None): Proxy settings for the request.
+
+    Returns:
+        dict: Parsed JSON response.
+    """
+    if os.path.exists(CACHE_FILE):
+        cache_age = int(time.time()) - int(os.path.getmtime(CACHE_FILE))
+        if cache_age < CACHE_TTL:
+            try:
+                with open(CACHE_FILE, 'r') as f:
+                    logging.info("Using cached inventory data")
+                    return json.load(f)
+            except Exception as e:
+                logging.warning(f"Failed to read cache file: {e}")
+
+    # Fetch fresh data
+    data = fetch_json_data(url, headers=headers, payload=payload, proxies=proxies)
+
+    # Cache the data
+    try:
+        with open(CACHE_FILE, 'w') as f:
+            json.dump(data, f)
+            logging.info("Cached new inventory data")
+    except Exception as e:
+        logging.warning(f"Failed to write cache file: {e}")
+
+    return data
+
 def generate_inventory(data):
+    """
+    Generates Ansible inventory structure from the fetched data.
+
+    Args:
+        data (dict): Parsed JSON data containing host information.
+
+    Returns:
+        dict: Ansible inventory structure.
+    """
     inventory = {
         "all": {
             "hosts": [],
             "vars": {}
         },
         "environments": {},
-        "codes": {},
+        "AppCodes": {},
         "_meta": {
             "hostvars": {}
         }
@@ -32,15 +147,17 @@ def generate_inventory(data):
 
     source = data.get('source', [])
     if not isinstance(source, list):
+        logging.error("Invalid JSON structure: 'source' key missing or not a list")
         print("Invalid JSON structure: 'source' key missing or not a list", file=sys.stderr)
         sys.exit(1)
 
     for item in source:
         fqdn = item.get('fqdn')
         environment = item.get('environment')
-        code = item.get('code')
+        app_code = item.get('appCodeMain')  # Changed from 'AppCode' to 'appCodeMain' based on user input
 
         if not fqdn:
+            logging.warning("An item in 'source' does not have 'fqdn'")
             print("Warning: An item in 'source' does not have 'fqdn'", file=sys.stderr)
             continue
 
@@ -54,72 +171,67 @@ def generate_inventory(data):
                 inventory['environments'][env_group] = {"hosts": [], "children": {}}
             inventory['environments'][env_group]['hosts'].append(fqdn)
 
-            # Initialize code subgroup within environment
-            if code:
-                code_group = f"code_{code}"
-                if code_group not in inventory['environments'][env_group]['children']:
-                    inventory['environments'][env_group]['children'][code_group] = {"hosts": []}
-                inventory['environments'][env_group]['children'][code_group]['hosts'].append(fqdn)
+            # Initialize AppCode subgroup within environment
+            if app_code:
+                app_code_group = f"AppCode_{app_code}"
+                if app_code_group not in inventory['environments'][env_group]['children']:
+                    inventory['environments'][env_group]['children'][app_code_group] = {"hosts": []}
+                inventory['environments'][env_group]['children'][app_code_group]['hosts'].append(fqdn)
+            else:
+                logging.warning(f"Host {fqdn} does not have 'appCodeMain'")
+                print(f"Warning: Host {fqdn} does not have 'appCodeMain'", file=sys.stderr)
         else:
+            logging.warning(f"Host {fqdn} does not have 'environment'")
             print(f"Warning: Host {fqdn} does not have 'environment'", file=sys.stderr)
 
-        # Initialize code group in 'codes'
-        if code:
-            if code not in inventory['codes']:
-                inventory['codes'][code] = {"hosts": []}
-            inventory['codes'][code]['hosts'].append(fqdn)
+        # Initialize AppCode group in 'AppCodes'
+        if app_code:
+            if app_code not in inventory['AppCodes']:
+                inventory['AppCodes'][app_code] = {"hosts": []}
+            inventory['AppCodes'][app_code]['hosts'].append(fqdn)
         else:
-            print(f"Warning: Host {fqdn} does not have 'code'", file=sys.stderr)
+            logging.warning(f"Host {fqdn} does not have 'appCodeMain'")
+            print(f"Warning: Host {fqdn} does not have 'appCodeMain'", file=sys.stderr)
 
         # Optionally, add host-specific variables
-        host_vars = {k: v for k, v in item.items() if k not in ['fqdn', 'environment', 'code']}
+        host_vars = {k: v for k, v in item.items() if k not in ['fqdn', 'environment', 'appCodeMain']}
         if host_vars:
             inventory['_meta']['hostvars'][fqdn] = host_vars
 
     return inventory
 
 def main():
-    parser = argparse.ArgumentParser(description='Dynamic Inventory Script for Ansible with Nested Groups')
-    parser.add_argument('--list', action='store_true', help='List all hosts')
-    parser.add_argument('--host', help='Get variables for a specific host')  # Optional: Implement if needed
-    parser.add_argument('--url', required=True, help='URL to fetch JSON data')
-    parser.add_argument('--headers', help='HTTP headers as JSON string', default='{}')
-    parser.add_argument('--params', help='HTTP GET parameters as JSON string', default='{}')
+    """
+    Main function to handle command-line arguments and output the inventory.
+    """
+    if len(sys.argv) == 2:
+        if sys.argv[1] == '--list':
+            # Fetch JSON data with caching
+            data = fetch_json_data_with_cache(
+                JSON_DATA_URL,
+                headers=HTTP_HEADERS,
+                payload=PAYLOAD,
+                proxies=PROXIES
+            )
 
-    args = parser.parse_args()
+            # Generate inventory
+            inventory = generate_inventory(data)
 
-    if args.host:
-        # Host-specific variables can be implemented here
-        # For simplicity, returning empty
-        print(json.dumps({}))
-        sys.exit(0)
+            # Output the inventory in JSON format
+            print(json.dumps(inventory, indent=2))
+            sys.exit(0)
 
-    if args.list:
-        # Parse headers and params if provided
-        try:
-            headers = json.loads(args.headers)
-        except json.JSONDecodeError:
-            print("Error parsing headers JSON", file=sys.stderr)
-            sys.exit(1)
+        elif sys.argv[1].startswith('--host='):
+            # Extract host name (not used in this script)
+            host = sys.argv[1].split('=')[1]
+            # Return empty hostvars or implement host-specific variables if needed
+            print(json.dumps({}))
+            sys.exit(0)
 
-        try:
-            params = json.loads(args.params)
-        except json.JSONDecodeError:
-            print("Error parsing params JSON", file=sys.stderr)
-            sys.exit(1)
-
-        # Fetch JSON data from the URL
-        data = fetch_json_data(args.url, headers=headers, params=params)
-
-        # Generate inventory
-        inventory = generate_inventory(data)
-
-        # Output the inventory in JSON format
-        print(json.dumps(inventory, indent=2))
-        sys.exit(0)
-
-    # If no arguments provided, show help
-    parser.print_help()
+    # If no arguments or unrecognized arguments are provided, display help
+    print("Usage:")
+    print("  dynamic_inventory.py --list")
+    print("  dynamic_inventory.py --host=hostname")
     sys.exit(1)
 
 if __name__ == '__main__':
