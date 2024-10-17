@@ -5,6 +5,7 @@ import sys
 import requests
 import logging
 import os
+import time
 
 # ---------------------------
 # Configuration Section
@@ -13,11 +14,9 @@ import os
 # Static URL to fetch the JSON data
 JSON_DATA_URL = "https://api.example.com/hosts"  # Replace with your actual URL
 
-# Static payload for the HTTP request (if using POST). If using GET, set to None.
-PAYLOAD = {
-    "param1": "value1",
-    "param2": "value2"
-}  # Replace with your actual payload or set to None for GET requests
+# Static payload for the HTTP request.
+# If using GET, set PAYLOAD to None. If using POST, provide the necessary payload.
+PAYLOAD = None  # Set to your payload dictionary if using POST, else None
 
 # Static headers for the HTTP request
 HTTP_HEADERS = {
@@ -25,11 +24,6 @@ HTTP_HEADERS = {
     "Content-Type": "application/json"
 }
 
-# Proxy settings (optional). Set to None if not using a proxy.
-PROXIES = {
-    "http": "http://proxy.example.com:8080",
-    "https": "https://proxy.example.com:8080",
-}
 
 # Cache configuration (optional)
 CACHE_FILE = '/tmp/dynamic_inventory_cache.json'
@@ -47,7 +41,7 @@ logging.basicConfig(
 # End of Configuration
 # ---------------------------
 
-def fetch_json_data(url, headers=None, payload=None, proxies=None):
+def fetch_json_data(url, headers=None, payload=None):
     """
     Fetches JSON data from the specified URL using HTTP GET or POST.
 
@@ -65,10 +59,10 @@ def fetch_json_data(url, headers=None, payload=None, proxies=None):
     """
     try:
         if payload:
-            response = requests.post(url, headers=headers, json=payload, proxies=proxies, timeout=10)
+            response = requests.post(url, headers=headers, json=payload,  timeout=10)
             logging.info(f"Sent POST request to {url} with payload: {payload}")
         else:
-            response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+            response = requests.get(url, headers=headers,  timeout=10)
             logging.info(f"Sent GET request to {url}")
 
         response.raise_for_status()
@@ -87,7 +81,7 @@ def fetch_json_data(url, headers=None, payload=None, proxies=None):
         print(f"JSON decoding error: {e}", file=sys.stderr)
         sys.exit(1)
 
-def fetch_json_data_with_cache(url, headers=None, payload=None, proxies=None):
+def fetch_json_data_with_cache(url, headers=None, payload=None):
     """
     Fetches JSON data with caching. Uses cached data if it's fresh.
 
@@ -109,6 +103,7 @@ def fetch_json_data_with_cache(url, headers=None, payload=None, proxies=None):
                     return json.load(f)
             except Exception as e:
                 logging.warning(f"Failed to read cache file: {e}")
+                # Proceed to fetch fresh data
 
     # Fetch fresh data
     data = fetch_json_data(url, headers=headers, payload=payload, proxies=proxies)
@@ -131,18 +126,18 @@ def generate_inventory(data):
         data (dict): Parsed JSON data containing host information.
 
     Returns:
-        dict: Ansible inventory structure.
+        dict: Ansible inventory structure matching the expected output.
     """
     inventory = {
+        "_meta": {
+            "hostvars": {}
+        },
         "all": {
             "hosts": [],
             "vars": {}
         },
         "environments": {},
-        "AppCodes": {},
-        "_meta": {
-            "hostvars": {}
-        }
+        "AppCodes": {}
     }
 
     source = data.get('source', [])
@@ -154,7 +149,7 @@ def generate_inventory(data):
     for item in source:
         fqdn = item.get('fqdn')
         environment = item.get('environment')
-        app_code = item.get('appCodeMain')  # Changed from 'AppCode' to 'appCodeMain' based on user input
+        app_code = item.get('appCodeMain')
 
         if not fqdn:
             logging.warning("An item in 'source' does not have 'fqdn'")
@@ -164,19 +159,32 @@ def generate_inventory(data):
         # Add to 'all' group
         inventory['all']['hosts'].append(fqdn)
 
-        # Initialize environment group
+        # Add host variables
+        inventory['_meta']['hostvars'][fqdn] = {}
         if environment:
-            env_group = environment
-            if env_group not in inventory['environments']:
-                inventory['environments'][env_group] = {"hosts": [], "children": {}}
-            inventory['environments'][env_group]['hosts'].append(fqdn)
+            inventory['_meta']['hostvars'][fqdn]['environment'] = environment
+        if app_code:
+            inventory['_meta']['hostvars'][fqdn]['appCodeMain'] = app_code
 
-            # Initialize AppCode subgroup within environment
+        # Process 'environments' group
+        if environment:
+            if environment not in inventory['environments']:
+                inventory['environments'][environment] = {
+                    "hosts": [],
+                    "children": {}
+                }
+            # Add host to the environment's hosts
+            inventory['environments'][environment]['hosts'].append(fqdn)
+
+            # Process AppCode within environment
             if app_code:
-                app_code_group = f"AppCode_{app_code}"
-                if app_code_group not in inventory['environments'][env_group]['children']:
-                    inventory['environments'][env_group]['children'][app_code_group] = {"hosts": []}
-                inventory['environments'][env_group]['children'][app_code_group]['hosts'].append(fqdn)
+                appcode_group_name = f"AppCode_{app_code}"
+                if appcode_group_name not in inventory['environments'][environment]['children']:
+                    inventory['environments'][environment]['children'][appcode_group_name] = {
+                        "hosts": []
+                    }
+                # Add host to the AppCode group within the environment
+                inventory['environments'][environment]['children'][appcode_group_name]['hosts'].append(fqdn)
             else:
                 logging.warning(f"Host {fqdn} does not have 'appCodeMain'")
                 print(f"Warning: Host {fqdn} does not have 'appCodeMain'", file=sys.stderr)
@@ -184,19 +192,17 @@ def generate_inventory(data):
             logging.warning(f"Host {fqdn} does not have 'environment'")
             print(f"Warning: Host {fqdn} does not have 'environment'", file=sys.stderr)
 
-        # Initialize AppCode group in 'AppCodes'
+        # Process 'AppCodes' group
         if app_code:
             if app_code not in inventory['AppCodes']:
-                inventory['AppCodes'][app_code] = {"hosts": []}
+                inventory['AppCodes'][app_code] = {
+                    "hosts": []
+                }
+            # Add host to the AppCode group
             inventory['AppCodes'][app_code]['hosts'].append(fqdn)
         else:
             logging.warning(f"Host {fqdn} does not have 'appCodeMain'")
             print(f"Warning: Host {fqdn} does not have 'appCodeMain'", file=sys.stderr)
-
-        # Optionally, add host-specific variables
-        host_vars = {k: v for k, v in item.items() if k not in ['fqdn', 'environment', 'appCodeMain']}
-        if host_vars:
-            inventory['_meta']['hostvars'][fqdn] = host_vars
 
     return inventory
 
@@ -222,10 +228,11 @@ def main():
             sys.exit(0)
 
         elif sys.argv[1].startswith('--host='):
-            # Extract host name (not used in this script)
+            # Extract host name
             host = sys.argv[1].split('=')[1]
-            # Return empty hostvars or implement host-specific variables if needed
-            print(json.dumps({}))
+            # Return host-specific variables if available
+            host_vars = inventory['_meta']['hostvars'].get(host, {})
+            print(json.dumps(host_vars))
             sys.exit(0)
 
     # If no arguments or unrecognized arguments are provided, display help
