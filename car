@@ -1,0 +1,10 @@
+curl -k -X POST \
+ -H "Content-Type: application/json" \
+ -H "Authorization: Bearer your_api_token" \
+ -d '{
+       "extra_vars": {
+         "appCode": "APPCODE1",
+         "environment": "QA"
+       }
+     }' \
+ https://your_aap_server/api/v2/job_templates/<job_template_id>/launch/
